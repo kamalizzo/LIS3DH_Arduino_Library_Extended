@@ -28,6 +28,8 @@ Distributed as-is; no warranty is given.
 //for functional testing.
 //#define VERBOSE_SERIAL
 
+
+#define LTC4332_USED
 //See SparkFunLIS3DH.h for additional topology notes.
 
 #include "SparkFunLIS3DH.h"
@@ -52,7 +54,7 @@ Distributed as-is; no warranty is given.
 //  Default construction is I2C mode, address 0x6B.
 //
 //****************************************************************************//
-LIS3DHCore::LIS3DHCore( uint8_t busType, uint8_t inputArg ) : commInterface(I2C_MODE), I2CAddress(0x19), chipSelectPin(10)
+LIS3DHCore::LIS3DHCore( uint8_t busType, uint8_t inputArg) : commInterface(I2C_MODE), I2CAddress(0x19), chipSelectPin(10)
 {
 	commInterface = busType;
 	if( commInterface == I2C_MODE )
@@ -62,8 +64,17 @@ LIS3DHCore::LIS3DHCore( uint8_t busType, uint8_t inputArg ) : commInterface(I2C_
 	if( commInterface == SPI_MODE )
 	{
 		chipSelectPin = inputArg;
+		sensorSPI = &SPI;
 	}
 
+}
+
+void LIS3DHCore::setSPI(SPIClass *SPIInterface){
+	sensorSPI = SPIInterface;
+}
+
+uint8_t LIS3DHCore::getCommInterface(void){
+	return commInterface;
 }
 
 status_t LIS3DHCore::beginCore(void)
@@ -81,45 +92,45 @@ status_t LIS3DHCore::beginCore(void)
 		// initalize the chip select pins:
 		pinMode(chipSelectPin, OUTPUT);
 		digitalWrite(chipSelectPin, HIGH);
-		SPI.begin();
-		SPI.setFrequency(1000000);
+		sensorSPI->begin();
+		sensorSPI->setFrequency(2000000);
 		// Data is read and written MSb first.
-		SPI.setBitOrder(SPI_MSBFIRST);
+		sensorSPI->setBitOrder(SPI_MSBFIRST);
 		// Like the standard arduino/teensy comment below, mode0 seems wrong according to standards
 		// but conforms to the timing diagrams when used for the ESP32
-		SPI.setDataMode(SPI_MODE0);
+		sensorSPI->setDataMode(SPI_MODE0);
 
 #elif defined(__MK20DX256__)
 		// initalize the chip select pins:
 		pinMode(chipSelectPin, OUTPUT);
 		digitalWrite(chipSelectPin, HIGH);
 		// start the SPI library:
-		SPI.begin();
+		sensorSPI->begin();
 		// Maximum SPI frequency is 10MHz, could divide by 2 here:
-		SPI.setClockDivider(SPI_CLOCK_DIV4);
+		sensorSPI->setClockDivider(SPI_CLOCK_DIV4);
 		// Data is read and written MSb first.
-		SPI.setBitOrder(MSBFIRST);
+		sensorSPI->setBitOrder(MSBFIRST);
 		// Data is captured on rising edge of clock (CPHA = 0)
 		// Base value of the clock is HIGH (CPOL = 1)
 
 		// MODE0 for Teensy 3.1 operation
-		SPI.setDataMode(SPI_MODE0);
+		sensorSPI->setDataMode(SPI_MODE0);
 #else
 // probably __AVR__
 		// initalize the chip select pins:
 		pinMode(chipSelectPin, OUTPUT);
 		digitalWrite(chipSelectPin, HIGH);
 		// start the SPI library:
-		SPI.begin();
+		sensorSPI->begin();
 		// Maximum SPI frequency is 10MHz, could divide by 2 here:
-		SPI.setClockDivider(SPI_CLOCK_DIV4);
+		sensorSPI->setClockDivider(SPI_CLOCK_DIV4);
 		// Data is read and written MSb first.
-		SPI.setBitOrder(MSBFIRST);
+		sensorSPI->setBitOrder(MSBFIRST);
 		// Data is captured on rising edge of clock (CPHA = 0)
 		// Base value of the clock is HIGH (CPOL = 1)
 
 		// MODE3 for 328p operation
-		SPI.setDataMode(SPI_MODE3);
+		sensorSPI->setDataMode(SPI_MODE3);
 
 #endif
 		break;
@@ -198,10 +209,14 @@ status_t LIS3DHCore::readRegisterRegion(uint8_t *outputPointer , uint8_t offset,
 		// take the chip select low to select the device:
 		digitalWrite(chipSelectPin, LOW);
 		// send the device the register you want to read:
-		SPI.transfer(offset | 0x80 | 0x40);  //Ored with "read request" bit and "auto increment" bit
+		sensorSPI->transfer(offset | 0x80 | 0x40);  //Ored with "read request" bit and "auto increment" bit
+	#ifdef LTC4332_USED
+		//extra read transfer 
+		sensorSPI->transfer(0x00);
+	#endif
 		while ( i < length ) // slave may send less than requested
 		{
-			c = SPI.transfer(0x00); // receive a byte as character
+			c = sensorSPI->transfer(0x00); // receive a byte as character
 			if( c == 0xFF )
 			{
 				//May have problem
@@ -262,9 +277,14 @@ status_t LIS3DHCore::readRegister(uint8_t* outputPointer, uint8_t offset) {
 		// take the chip select low to select the device:
 		digitalWrite(chipSelectPin, LOW);
 		// send the device the register you want to read:
-		SPI.transfer(offset | 0x80);  //Ored with "read request" bit
+		sensorSPI->transfer(offset | 0x80);  //Ored with "read request" bit
+	#ifdef LTC4332_USED
+		//extra read transfer 
+		sensorSPI->transfer(0x00);
+	#endif
+
 		// send a value of 0 to read the first byte returned:
-		result = SPI.transfer(0x00);
+		result = sensorSPI->transfer(0x00);
 		// take the chip select high to de-select:
 		digitalWrite(chipSelectPin, HIGH);
 		
@@ -332,9 +352,9 @@ status_t LIS3DHCore::writeRegister(uint8_t offset, uint8_t dataToWrite) {
 		// take the chip select low to select the device:
 		digitalWrite(chipSelectPin, LOW);
 		// send the device the register you want to read:
-		SPI.transfer(offset);
+		sensorSPI->transfer(offset);
 		// send a value of 0 to read the first byte returned:
-		SPI.transfer(dataToWrite);
+		sensorSPI->transfer(dataToWrite);
 		// decrement the number of bytes left to read:
 		// take the chip select high to de-select:
 		digitalWrite(chipSelectPin, HIGH);
@@ -372,6 +392,7 @@ LIS3DH::LIS3DH( uint8_t busType, uint8_t inputArg ) : LIS3DHCore( busType, input
 	settings.xAccelEnabled = 1;
 	settings.yAccelEnabled = 1;
 	settings.zAccelEnabled = 1;
+	settings.lowPerformanceEnabled = 0;
 
 	//FIFO control settings
 	settings.fifoEnabled = 0;
@@ -400,6 +421,22 @@ status_t LIS3DH::begin( void )
 	return returnError;
 }
 
+status_t LIS3DH::beginSPI( SPIClass *SPIInterface )
+{
+
+	if (getCommInterface() == I2C_MODE) {
+		return IMU_GENERIC_ERROR;
+	}
+
+	setSPI(SPIInterface);
+	// sensorSPI = spiUsed;
+	status_t returnError = beginCore();
+
+	applySettings();
+	
+	return returnError;
+
+}
 //****************************************************************************//
 //
 //  Configuration section
@@ -457,7 +494,7 @@ void LIS3DH::applySettings( void )
 		dataToWrite |= (0x09 << 4);
 		break;
 	}
-	
+	dataToWrite |= (settings.lowPerformanceEnabled & 0x01) << 3;
 	dataToWrite |= (settings.zAccelEnabled & 0x01) << 2;
 	dataToWrite |= (settings.yAccelEnabled & 0x01) << 1;
 	dataToWrite |= (settings.xAccelEnabled & 0x01);
@@ -519,6 +556,8 @@ int16_t LIS3DH::readRawAccelX( void )
 	}
 	return output;
 }
+
+
 float LIS3DH::readFloatAccelX( void )
 {
 	float output = calcAccel(readRawAccelX());
@@ -572,6 +611,26 @@ float LIS3DH::readFloatAccelZ( void )
 {
 	float output = calcAccel(readRawAccelZ());
 	return output;
+}
+
+void LIS3DH::readFloatAccelerations(float *accX, float *accY, float *accZ){
+	uint8_t myBuffer[6];
+
+	status_t errorLevel = readRegisterRegion(myBuffer, LIS3DH_OUT_X_L, 6);  //Does memory transfer
+	if( errorLevel != IMU_SUCCESS )
+	{
+		if( errorLevel == IMU_ALL_ONES_WARNING )
+		{
+			allOnesCounter++;
+		}
+		else
+		{
+			nonSuccessCounter++;
+		}
+	}
+	*accX = calcAccel((int16_t)myBuffer[0] | int16_t(myBuffer[1] << 8));
+	*accY = calcAccel((int16_t)myBuffer[2] | int16_t(myBuffer[3] << 8));
+	*accZ = calcAccel((int16_t)myBuffer[4] | int16_t(myBuffer[5] << 8));
 }
 
 float LIS3DH::calcAccel( int16_t input )

@@ -28,6 +28,7 @@ Distributed as-is; no warranty is given.
 #define __LIS3DH_IMU_H__
 
 #include "stdint.h"
+#include <SPI.h>
 
 //values for commInterface
 #define I2C_MODE 0
@@ -80,6 +81,11 @@ private:
 	uint8_t commInterface;
 	uint8_t I2CAddress;
 	uint8_t chipSelectPin;
+	SPIClass *sensorSPI;
+
+protected:
+	void setSPI (SPIClass*);
+	uint8_t getCommInterface( void );
 };
 
 //This struct holds the settings the driver uses to do calculations
@@ -94,6 +100,7 @@ public:
 	uint16_t accelSampleRate;  //Hz.  Can be: 0,1,10,25,50,100,200,400,1600,5000 Hz
 	uint8_t accelRange;      //Max G force readable.  Can be: 2, 4, 8, 16
 
+	uint8_t lowPerformanceEnabled;
 	uint8_t xAccelEnabled;
 	uint8_t yAccelEnabled;
 	uint8_t zAccelEnabled;
@@ -128,6 +135,7 @@ public:
 	
 	//Call to apply SensorSettings
 	status_t begin( void );
+	status_t beginSPI( SPIClass *SPIInterface = &SPI );
 	void applySettings( void );
 
 	//Returns the raw bits from the sensor cast as 16-bit signed integers
@@ -139,6 +147,8 @@ public:
 	float readFloatAccelX( void );
 	float readFloatAccelY( void );
 	float readFloatAccelZ( void );
+
+	void readFloatAccelerations(float*, float*, float*);
 
 	//ADC related calls
 	uint16_t read10bitADC1( void );
