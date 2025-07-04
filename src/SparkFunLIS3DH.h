@@ -149,6 +149,9 @@ public:
 	float readFloatAccelZ( void );
 
 	void readFloatAccelerations(float*, float*, float*);
+	
+	void readRawAccelerations(int16_t*, int16_t*, int16_t*);
+
 
 	//ADC related calls
 	uint16_t read10bitADC1( void );
