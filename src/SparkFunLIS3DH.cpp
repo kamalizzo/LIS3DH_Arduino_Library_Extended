@@ -633,6 +633,26 @@ void LIS3DH::readFloatAccelerations(float *accX, float *accY, float *accZ){
 	*accZ = calcAccel((int16_t)myBuffer[4] | int16_t(myBuffer[5] << 8));
 }
 
+void LIS3DH::readRawAccelerations(int16_t *accX, int16_t *accY, int16_t *accZ){
+	uint8_t myBuffer[6];
+
+	status_t errorLevel = readRegisterRegion(myBuffer, LIS3DH_OUT_X_L, 6);  //Does memory transfer
+	if( errorLevel != IMU_SUCCESS )
+	{
+		if( errorLevel == IMU_ALL_ONES_WARNING )
+		{
+			allOnesCounter++;
+		}
+		else
+		{
+			nonSuccessCounter++;
+		}
+	}
+	*accX = (int16_t)myBuffer[0] | int16_t(myBuffer[1] << 8);
+	*accY = (int16_t)myBuffer[2] | int16_t(myBuffer[3] << 8);
+	*accZ = (int16_t)myBuffer[4] | int16_t(myBuffer[5] << 8);
+}
+
 float LIS3DH::calcAccel( int16_t input )
 {
 	float output;
