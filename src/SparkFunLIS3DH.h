@@ -66,6 +66,9 @@ public:
 	//  a chunk of memory into that array.
 	status_t readRegisterRegion(uint8_t*, uint8_t, uint8_t );
 	
+	//ReadRegisterRegion but with burst read on one call  
+	status_t readBurstRegisterRegion(uint8_t*, uint8_t, uint8_t, uint8_t);
+	
 	//readRegister reads one 8-bit register
 	status_t readRegister(uint8_t*, uint8_t);
 	
@@ -151,6 +154,8 @@ public:
 	void readFloatAccelerations(float*, float*, float*);
 	
 	void readRawAccelerations(int16_t*, int16_t*, int16_t*);
+
+	void readBurstRawAccelerations(int16_t*, uint8_t, uint8_t);
 
 
 	//ADC related calls

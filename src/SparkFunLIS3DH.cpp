@@ -34,7 +34,6 @@ Distributed as-is; no warranty is given.
 
 #include "SparkFunLIS3DH.h"
 #include "stdint.h"
-
 #include "Wire.h"
 #include "SPI.h"
 
@@ -230,6 +229,100 @@ status_t LIS3DHCore::readRegisterRegion(uint8_t *outputPointer , uint8_t offset,
 		{
 			//Ok, we've recieved all ones, report
 			returnError = IMU_ALL_ONES_WARNING;
+		}
+		// take the chip select high to de-select:
+		digitalWrite(chipSelectPin, HIGH);
+		break;
+
+	default:
+		break;
+	}
+
+	return returnError;
+}
+
+status_t LIS3DHCore::readBurstRegisterRegion(uint8_t *outputPointer , uint8_t offset, uint8_t length, uint8_t wtm_level)
+{
+	status_t returnError = IMU_SUCCESS;
+
+	//define pointer that will point to the external space
+	uint8_t i = 0;
+	uint8_t j = 0; //number of fifo wtm level 
+	uint8_t c = 0;
+	uint8_t tempFFCounter = 0;
+
+	switch (commInterface) {
+
+	case I2C_MODE:
+		// Wire.beginTransmission(I2CAddress);
+		// offset |= 0x80; //turn auto-increment bit on, bit 7 for I2C
+		// Wire.write(offset);
+		// if( Wire.endTransmission() != 0 )
+		// {
+		// 	returnError = IMU_HW_ERROR;
+		// }
+		// else  //OK, all worked, keep going
+		// {
+		// 	// request 6 bytes from slave device
+		// 	Wire.requestFrom(I2CAddress, length);
+		// 	while ( (Wire.available()) && (i < length))  // slave may send less than requested
+		// 	{
+		// 		c = Wire.read(); // receive a byte as character
+		// 		*outputPointer = c;
+		// 		outputPointer++;
+		// 		i++;
+		// 	}
+		// }
+		break;
+
+	case SPI_MODE:
+		// take the chip select low to select the device:
+		digitalWrite(chipSelectPin, LOW);
+		// send the device the register you want to read:
+		sensorSPI->transfer(offset | 0x80 | 0x40);  //Ored with "read request" bit and "auto increment" bit
+	#ifdef LTC4332_USED
+		//extra read transfer 
+		sensorSPI->transfer(0x00);
+	#endif
+		
+		while ( i < length ) // slave may send less than requested
+		{
+			c = sensorSPI->transfer(0x00); // receive a byte as character
+			if( c == 0xFF )
+			{
+				//May have problem
+				tempFFCounter++;
+			}
+			*outputPointer = c;
+			outputPointer++;
+			i++;
+		}
+		if( tempFFCounter == i )
+		{
+			//Ok, we've recieved all ones, report
+			returnError = IMU_ALL_ONES_WARNING;
+		}
+
+		while (j < wtm_level){
+			i = 0;
+			sensorSPI->transfer(offset | 0x80 | 0x40);
+			while ( i < length ) // slave may send less than requested
+			{
+				c = sensorSPI->transfer(0x00); // receive a byte as character
+				if( c == 0xFF )
+				{
+					//May have problem
+					tempFFCounter++;
+				}
+				*outputPointer = c;
+				outputPointer++;
+				i++;
+			}
+			if( tempFFCounter == i )
+			{
+				//Ok, we've recieved all ones, report
+				returnError = IMU_ALL_ONES_WARNING;
+			}
 		}
 		// take the chip select high to de-select:
 		digitalWrite(chipSelectPin, HIGH);
@@ -652,6 +745,72 @@ void LIS3DH::readRawAccelerations(int16_t *accX, int16_t *accY, int16_t *accZ){
 	*accY = (int16_t)myBuffer[2] | int16_t(myBuffer[3] << 8);
 	*accZ = (int16_t)myBuffer[4] | int16_t(myBuffer[5] << 8);
 }
+
+
+void LIS3DH::readBurstFloatAccelerations(float* buf, uint8_t lenBuf, uint8_t lenWtmLevel){
+
+	int totalLevel = lenWtmLevel + 1;
+	int totalBuffer = totalLevel * 6;
+	uint8_t myBuffer[totalBuffer];
+
+	status_t errorLevel = readBurstRegisterRegion(myBuffer, LIS3DH_OUT_X_L, 6, lenWtmLevel);  //Does memory transfer
+	if( errorLevel != IMU_SUCCESS )
+	{
+		if( errorLevel == IMU_ALL_ONES_WARNING )
+		{
+			allOnesCounter++;
+		}
+		else
+		{
+			nonSuccessCounter++;
+		}
+	}
+
+	for(int i= 0; i < totalLevel; i++){
+		int idx = i * 6;
+		int bufIdx = i * 3;
+
+		buf[bufIdx] = calcAccel((int16_t)myBuffer[idx+0] | int16_t(myBuffer[idx+1] << 8));
+		buf[bufIdx + 1] = calcAccel((int16_t)myBuffer[idx+2] | int16_t(myBuffer[idx+3] << 8));
+		buf[bufIdx + 2] = calcAccel((int16_t)myBuffer[idx+4] | int16_t(myBuffer[idx+5] << 8));
+
+	}
+
+}
+
+
+void LIS3DH::readBurstRawAccelerations(int16_t* buf, uint8_t lenBuf, uint8_t lenWtmLevel){
+
+	int totalLevel = lenWtmLevel + 1;
+	int totalBuffer = totalLevel * 6;
+	uint8_t myBuffer[totalBuffer];
+
+	status_t errorLevel = readBurstRegisterRegion(myBuffer, LIS3DH_OUT_X_L, 6, lenWtmLevel);  //Does memory transfer
+	if( errorLevel != IMU_SUCCESS )
+	{
+		if( errorLevel == IMU_ALL_ONES_WARNING )
+		{
+			allOnesCounter++;
+		}
+		else
+		{
+			nonSuccessCounter++;
+		}
+	}
+
+	for(int i= 0; i < totalLevel; i++){
+		int idx = i * 6;
+		int bufIdx = i * 3;
+
+		buf[bufIdx] = (int16_t)myBuffer[idx+0] | int16_t(myBuffer[idx+1] << 8);
+		buf[bufIdx + 1] = (int16_t)myBuffer[idx+2] | int16_t(myBuffer[idx+3] << 8);
+		buf[bufIdx + 2] = (int16_t)myBuffer[idx+4] | int16_t(myBuffer[idx+5] << 8);
+
+	}
+
+
+}
+
 
 float LIS3DH::calcAccel( int16_t input )
 {
