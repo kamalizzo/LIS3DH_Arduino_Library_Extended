@@ -157,7 +157,7 @@ public:
 
 	void readBurstRawAccelerations(int16_t*, uint8_t, uint8_t);
 
-	void readBurstFloatAccelerations(float*, uint8_t, uint8_t)
+	void readBurstFloatAccelerations(float*, uint8_t, uint8_t);
 
 
 	//ADC related calls
