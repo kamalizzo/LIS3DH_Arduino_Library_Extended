@@ -104,6 +104,7 @@ public:
 	uint8_t accelRange;      //Max G force readable.  Can be: 2, 4, 8, 16
 
 	uint8_t lowPerformanceEnabled;
+	uint8_t highResolutionEnabled;
 	uint8_t xAccelEnabled;
 	uint8_t yAccelEnabled;
 	uint8_t zAccelEnabled;
