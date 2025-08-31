@@ -247,34 +247,14 @@ status_t LIS3DHCore::readBurstRegisterRegion(uint8_t *outputPointer , uint8_t of
 
 	//define pointer that will point to the external space
 	uint8_t i = 0;
-	uint8_t j = 0; //number of fifo wtm level 
+	// uint8_t j = 0; //number of fifo wtm level 
 	uint8_t c = 0;
 	uint8_t tempFFCounter = 0;
 
 	switch (commInterface) {
 
 	case I2C_MODE:
-		// Wire.beginTransmission(I2CAddress);
-		// offset |= 0x80; //turn auto-increment bit on, bit 7 for I2C
-		// Wire.write(offset);
-		// if( Wire.endTransmission() != 0 )
-		// {
-		// 	returnError = IMU_HW_ERROR;
-		// }
-		// else  //OK, all worked, keep going
-		// {
-		// 	// request 6 bytes from slave device
-		// 	Wire.requestFrom(I2CAddress, length);
-		// 	while ( (Wire.available()) && (i < length))  // slave may send less than requested
-		// 	{
-		// 		c = Wire.read(); // receive a byte as character
-		// 		*outputPointer = c;
-		// 		outputPointer++;
-		// 		i++;
-		// 	}
-		// }
 		break;
-
 	case SPI_MODE:
 		// take the chip select low to select the device:
 		digitalWrite(chipSelectPin, LOW);
@@ -303,7 +283,7 @@ status_t LIS3DHCore::readBurstRegisterRegion(uint8_t *outputPointer , uint8_t of
 			returnError = IMU_ALL_ONES_WARNING;
 		}
 
-		while (j < wtm_level){
+		for (int j = 0; j < wtm_level; j++){
 			i = 0;
 			sensorSPI->transfer(offset | 0x80 | 0x40);
 			while ( i < length ) // slave may send less than requested
@@ -618,7 +598,8 @@ void LIS3DH::applySettings( void )
 		break;
 	}
 	dataToWrite |= 0x80; //set block update
-	dataToWrite |= 0x08; //set high resolution
+
+	dataToWrite |= ((settings.highResolutionEnabled & 0x01) << 3); //set high resolution
 #ifdef VERBOSE_SERIAL
 	Serial.print("LIS3DH_CTRL_REG4: 0x");
 	Serial.println(dataToWrite, HEX);
