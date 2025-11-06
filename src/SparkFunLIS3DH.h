@@ -153,6 +153,8 @@ public:
 	float readFloatAccelZ( void );
 
 	void readFloatAccelerations(float*, float*, float*);
+	void readFloatAccelerationsXY(float*, float*);
+
 	
 	void readRawAccelerations(int16_t*, int16_t*, int16_t*);
 

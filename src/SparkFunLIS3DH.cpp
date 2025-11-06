@@ -36,6 +36,7 @@ Distributed as-is; no warranty is given.
 #include "stdint.h"
 #include "Wire.h"
 #include "SPI.h"
+#include <Arduino.h>
 
 //****************************************************************************//
 //
@@ -98,6 +99,7 @@ status_t LIS3DHCore::beginCore(void)
 		// Like the standard arduino/teensy comment below, mode0 seems wrong according to standards
 		// but conforms to the timing diagrams when used for the ESP32
 		sensorSPI->setDataMode(SPI_MODE0);
+		Serial.println("ESP32 SPI set!");
 
 #elif defined(__MK20DX256__)
 		// initalize the chip select pins:
@@ -130,6 +132,8 @@ status_t LIS3DHCore::beginCore(void)
 
 		// MODE3 for 328p operation
 		sensorSPI->setDataMode(SPI_MODE3);
+		Serial.println("AVR SPI set!");
+
 
 #endif
 		break;
@@ -466,6 +470,7 @@ LIS3DH::LIS3DH( uint8_t busType, uint8_t inputArg ) : LIS3DHCore( busType, input
 	settings.yAccelEnabled = 1;
 	settings.zAccelEnabled = 1;
 	settings.lowPerformanceEnabled = 0;
+	settings.highResolutionEnabled = 0;
 
 	//FIFO control settings
 	settings.fifoEnabled = 0;
@@ -707,6 +712,25 @@ void LIS3DH::readFloatAccelerations(float *accX, float *accY, float *accZ){
 	*accZ = calcAccel((int16_t)myBuffer[4] | int16_t(myBuffer[5] << 8));
 }
 
+void LIS3DH::readFloatAccelerationsXY(float *accX, float *accY){
+	uint8_t myBuffer[4];
+
+	status_t errorLevel = readRegisterRegion(myBuffer, LIS3DH_OUT_X_L, 4);  //Does memory transfer
+	if( errorLevel != IMU_SUCCESS )
+	{
+		if( errorLevel == IMU_ALL_ONES_WARNING )
+		{
+			allOnesCounter++;
+		}
+		else
+		{
+			nonSuccessCounter++;
+		}
+	}
+	*accX = calcAccel((int16_t)myBuffer[0] | int16_t(myBuffer[1] << 8));
+	*accY = calcAccel((int16_t)myBuffer[2] | int16_t(myBuffer[3] << 8));
+}
+
 void LIS3DH::readRawAccelerations(int16_t *accX, int16_t *accY, int16_t *accZ){
 	uint8_t myBuffer[6];
 
@@ -877,6 +901,7 @@ void LIS3DH::fifoBegin( void )
 	readRegister( &dataToWrite, LIS3DH_CTRL_REG5 ); //Start with existing data
 	dataToWrite &= 0xBF;//clear bit 6
 	dataToWrite |= (settings.fifoEnabled & 0x01) << 6;
+	// dataToWrite |= 0x08;
 	//Now, write the patched together data
 #ifdef VERBOSE_SERIAL
 	Serial.print("LIS3DH_CTRL_REG5: 0x");
